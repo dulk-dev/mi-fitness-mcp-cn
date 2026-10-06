@@ -95,6 +95,56 @@ async def test_connect_failure_closes_client(monkeypatch):
     assert "invalid credentials" in adapter.last_error
 
 
+@pytest.mark.asyncio
+async def test_iter_sleep_and_spo2_fetch_watch_keys(monkeypatch):
+    adapter = MiFitnessCloudAdapter(user_id="u1", pass_token="p1", region="cn")
+    adapter._connected = True
+    adapter._client = object()
+    fetched: list[str] = []
+
+    async def fake_fetch(key, start_date, end_date, region=None):
+        fetched.append(key)
+        if key == "watch_night_sleep":
+            return [
+                {
+                    "sid": "s1",
+                    "key": "watch_night_sleep",
+                    "time": 1791244800,
+                    "value": {
+                        "bedtime": 1791227520,
+                        "wake_up_time": 1791245100,
+                        "duration": 293,
+                        "sleep_awake_duration": 0,
+                    },
+                }
+            ]
+        if key == "single_spo2":
+            return [
+                {
+                    "time": 1791242130,
+                    "value": {"time": 1791242130, "spo2": 96},
+                }
+            ]
+        return []
+
+    monkeypatch.setattr(adapter, "_fetch_key", fake_fetch)
+
+    sessions = await _collect(adapter.iter_sleep_sessions("2026-10-04", "2026-10-07"))
+    assert fetched == ["sleep", "watch_night_sleep"]
+    assert len(sessions) == 1
+    session = sessions[0]
+    assert session.timezone == "Asia/Shanghai"
+    assert session.duration_minutes == 293
+    assert session.time_awake_minutes == 0
+    assert session.start_at.isoformat() == "2026-10-06T03:12:00+08:00"
+    assert session.end_at.isoformat() == "2026-10-06T08:05:00+08:00"
+
+    spo2 = await _collect(adapter.iter_spo2("2026-10-04", "2026-10-07"))
+    assert fetched == ["sleep", "watch_night_sleep", "spo2", "single_spo2"]
+    assert len(spo2) == 1
+    assert spo2[0].spo2_pct == 96
+
+
 def test_authentication_error_detection():
     assert _is_authentication_error(401, "denied")
     assert _is_authentication_error(0, "session expired")

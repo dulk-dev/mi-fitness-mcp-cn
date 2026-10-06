@@ -51,6 +51,8 @@ flowchart LR
 | 压力 | 压力分数 + 等级 | `stress` | `/api/stress` |
 | 异常心跳 | 事件起止与时长 | `abnormal_heart_beat` | `/api/abnormal-heart-beat` |
 
+云端键：睡眠同时读取历史 `sleep` 与新手表夜间睡眠 `watch_night_sleep`（记录缺少 `zone_offset` 或为 0 时按 UTC+8，时区默认 `Asia/Shanghai`）。血氧同时读取 `spo2` 与采样键 `single_spo2`。
+
 ## 快速开始
 
 ### 安装

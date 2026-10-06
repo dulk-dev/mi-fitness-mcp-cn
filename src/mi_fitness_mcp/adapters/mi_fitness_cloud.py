@@ -512,9 +512,12 @@ class MiFitnessCloudAdapter(DataAdapter):
             yield
 
         records = await self._fetch_key("sleep", start_date, end_date)
+        # 2026-10: new overnight sleep is stored under "watch_night_sleep" (Vita patch)
+        records = list(records) + list(await self._fetch_key("watch_night_sleep", start_date, end_date))
         for item in records:
             payload = self._parse_value(item)
-            zone_offset = int(item.get("zone_offset", 0) or 0)
+            # watch_night_sleep items carry no zone_offset; default to UTC+8 (cn) (Vita patch)
+            zone_offset = int(item.get("zone_offset", 0) or 0) or 28800
             sleep_start = (
                 payload.get("bedtime")
                 or payload.get("device_bedtime")
@@ -561,7 +564,7 @@ class MiFitnessCloudAdapter(DataAdapter):
                 source_type="cloud_session",
                 source_record_id=str(item.get("time", "")) or None,
                 user_id=self.user_id or "unknown",
-                timezone=item.get("zone_name") or "UTC",
+                timezone=item.get("zone_name") or "Asia/Shanghai",
                 collected_at=self._record_datetime(item),
                 sleep_id=sleep_id,
                 start_at=start_at,
@@ -723,6 +726,8 @@ class MiFitnessCloudAdapter(DataAdapter):
             yield
 
         records = await self._fetch_key("spo2", start_date, end_date)
+        # 2026-10: SpO2 samples live under "single_spo2" (Vita patch)
+        records = list(records) + list(await self._fetch_key("single_spo2", start_date, end_date))
         for item in records:
             payload = self._parse_value(item)
             timestamp = payload.get("time") or item.get("time")

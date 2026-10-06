@@ -356,6 +356,91 @@ class QueryService:
         ]
         return events[:limit] if limit is not None else events
 
+    def get_pai_daily(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
+        records = self.db.query_pai_daily(self.user_id, start_date, end_date)
+        return [
+            {
+                "date": record["date"],
+                "daily_pai": record["daily_pai"],
+                "total_pai": record["total_pai"],
+                "low_zone_pai": record["low_zone_pai"],
+                "medium_zone_pai": record["medium_zone_pai"],
+                "high_zone_pai": record["high_zone_pai"],
+            }
+            for record in records
+        ]
+
+    def get_stand_hours(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
+        records = self.db.query_stand_hours(self.user_id, start_date, end_date)
+        return [{"start_at": record["start_at"], "end_at": record["end_at"]} for record in records]
+
+    def get_stand_daily(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
+        records = self.db.query_stand_daily(self.user_id, start_date, end_date)
+        return [
+            {"date": record["date"], "stand_hours": record["stand_hours"]} for record in records
+        ]
+
+    def get_valid_stand(self, start_date: str, end_date: str) -> dict[str, Any]:
+        hours = self.get_stand_hours(start_date, end_date)
+        daily = self.get_stand_daily(start_date, end_date)
+        return {"hours": hours, "daily": daily, "count": len(hours) + len(daily)}
+
+    def get_menstruation_events(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
+        labels = {1: "start", 2: "end", 3: "both"}
+        records = self.db.query_menstruation_events(self.user_id, start_date, end_date)
+        return [
+            {
+                "date": record["event_date"],
+                "status": record["status"],
+                "status_label": labels.get(record["status"]),
+                "date_time": record["date_time"],
+                "update_time": record.get("update_time"),
+            }
+            for record in records
+        ]
+
+    def get_training_load(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
+        records = self.db.query_training_load_daily(self.user_id, start_date, end_date)
+        return [
+            {
+                "date": record["date"],
+                "current_day_train_load": record.get("current_day_train_load"),
+                "wtl_sum": record.get("wtl_sum"),
+                "wtl_sum_optimal_min": record.get("wtl_sum_optimal_min"),
+                "wtl_sum_optimal_max": record.get("wtl_sum_optimal_max"),
+                "wtl_sum_overreaching": record.get("wtl_sum_overreaching"),
+            }
+            for record in records
+        ]
+
+    def get_intensity_samples(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
+        records = self.db.query_intensity_samples(self.user_id, start_date, end_date)
+        return [{"timestamp": record["timestamp"]} for record in records]
+
+    def get_intensity_daily(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
+        records = self.db.query_intensity_daily(self.user_id, start_date, end_date)
+        return [
+            {"date": record["date"], "duration_minutes": record["duration_minutes"]}
+            for record in records
+        ]
+
+    def get_intensity(self, start_date: str, end_date: str) -> dict[str, Any]:
+        samples = self.get_intensity_samples(start_date, end_date)
+        daily = self.get_intensity_daily(start_date, end_date)
+        return {"samples": samples, "daily": daily, "count": len(samples) + len(daily)}
+
+    def get_valid_stand_rows(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
+        payload = self.get_valid_stand(start_date, end_date)
+        return [{"record_type": "hour", **row} for row in payload["hours"]] + [
+            {"record_type": "daily", **row} for row in payload["daily"]
+        ]
+
+    def get_intensity_rows(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
+        payload = self.get_intensity(start_date, end_date)
+        return [{"record_type": "sample", **row} for row in payload["samples"]] + [
+            {"record_type": "daily", **row} for row in payload["daily"]
+        ]
+
     def get_data_coverage(self, data_types: list[str] | None = None) -> list[dict[str, Any]]:
         """Get data coverage information."""
         coverage = self.db.get_data_coverage(self.user_id)

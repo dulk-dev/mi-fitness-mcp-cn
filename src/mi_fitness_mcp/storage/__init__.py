@@ -12,9 +12,16 @@ from mi_fitness_mcp.models import (
     BodyMeasurement,
     DailyActivity,
     HeartRateSample,
+    IntensityDaily,
+    IntensitySample,
+    MenstruationEvent,
+    PaiDaily,
     SleepSession,
     SpO2Sample,
+    StandDaily,
+    StandHour,
     StressSample,
+    TrainingLoadDaily,
     Workout,
 )
 
@@ -218,6 +225,141 @@ class Database:
                 )
             """)
 
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS pai_daily (
+                    id TEXT PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_record_id TEXT,
+                    user_id TEXT NOT NULL,
+                    device_id TEXT,
+                    timezone TEXT DEFAULT 'UTC',
+                    collected_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    date TEXT NOT NULL,
+                    daily_pai REAL NOT NULL DEFAULT 0,
+                    total_pai REAL NOT NULL DEFAULT 0,
+                    low_zone_pai REAL NOT NULL DEFAULT 0,
+                    medium_zone_pai REAL NOT NULL DEFAULT 0,
+                    high_zone_pai REAL NOT NULL DEFAULT 0,
+                    UNIQUE(user_id, date)
+                )
+            """)
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS stand_hours (
+                    id TEXT PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_record_id TEXT,
+                    user_id TEXT NOT NULL,
+                    device_id TEXT,
+                    timezone TEXT DEFAULT 'UTC',
+                    collected_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    start_at TIMESTAMP NOT NULL,
+                    end_at TIMESTAMP NOT NULL,
+                    UNIQUE(user_id, start_at)
+                )
+            """)
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS stand_daily (
+                    id TEXT PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_record_id TEXT,
+                    user_id TEXT NOT NULL,
+                    device_id TEXT,
+                    timezone TEXT DEFAULT 'UTC',
+                    collected_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    date TEXT NOT NULL,
+                    stand_hours INTEGER NOT NULL DEFAULT 0,
+                    UNIQUE(user_id, date)
+                )
+            """)
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS menstruation_events (
+                    id TEXT PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_record_id TEXT,
+                    user_id TEXT NOT NULL,
+                    device_id TEXT,
+                    timezone TEXT DEFAULT 'UTC',
+                    collected_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    event_date TEXT NOT NULL,
+                    status INTEGER NOT NULL,
+                    date_time TIMESTAMP NOT NULL,
+                    update_time TIMESTAMP,
+                    UNIQUE(user_id, date_time, status)
+                )
+            """)
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS training_load_daily (
+                    id TEXT PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_record_id TEXT,
+                    user_id TEXT NOT NULL,
+                    device_id TEXT,
+                    timezone TEXT DEFAULT 'UTC',
+                    collected_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    date TEXT NOT NULL,
+                    current_day_train_load REAL,
+                    wtl_sum REAL,
+                    wtl_sum_optimal_min REAL,
+                    wtl_sum_optimal_max REAL,
+                    wtl_sum_overreaching REAL,
+                    UNIQUE(user_id, date)
+                )
+            """)
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS intensity_samples (
+                    id TEXT PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_record_id TEXT,
+                    user_id TEXT NOT NULL,
+                    device_id TEXT,
+                    timezone TEXT DEFAULT 'UTC',
+                    collected_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    timestamp TIMESTAMP NOT NULL,
+                    UNIQUE(user_id, timestamp)
+                )
+            """)
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS intensity_daily (
+                    id TEXT PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_record_id TEXT,
+                    user_id TEXT NOT NULL,
+                    device_id TEXT,
+                    timezone TEXT DEFAULT 'UTC',
+                    collected_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    date TEXT NOT NULL,
+                    duration_minutes INTEGER NOT NULL DEFAULT 0,
+                    UNIQUE(user_id, date)
+                )
+            """)
+
             # 同步状态表
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS sync_state (
@@ -261,6 +403,34 @@ class Database:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_abnormal_hr_user_start
                 ON abnormal_heart_beat_events(user_id, start_at)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_pai_user_date
+                ON pai_daily(user_id, date)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_stand_hours_user_start
+                ON stand_hours(user_id, start_at)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_stand_daily_user_date
+                ON stand_daily(user_id, date)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_menstruation_user_date
+                ON menstruation_events(user_id, event_date)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_training_load_user_date
+                ON training_load_daily(user_id, date)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_intensity_user_ts
+                ON intensity_samples(user_id, timestamp)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_intensity_daily_user_date
+                ON intensity_daily(user_id, date)
             """)
 
             conn.commit()
@@ -581,6 +751,242 @@ class Database:
             conn.commit()
             return cursor.rowcount > 0
 
+    def _stamp(self, value: datetime | None) -> str | None:
+        return value.isoformat() if value else None
+
+    def insert_pai_daily(self, record: PaiDaily) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO pai_daily (
+                    id, provider, source_type, source_record_id, user_id, device_id,
+                    timezone, collected_at, date, daily_pai, total_pai,
+                    low_zone_pai, medium_zone_pai, high_zone_pai
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    timezone = excluded.timezone,
+                    collected_at = excluded.collected_at,
+                    daily_pai = excluded.daily_pai,
+                    total_pai = excluded.total_pai,
+                    low_zone_pai = excluded.low_zone_pai,
+                    medium_zone_pai = excluded.medium_zone_pai,
+                    high_zone_pai = excluded.high_zone_pai,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    record.id,
+                    record.provider,
+                    record.source_type,
+                    record.source_record_id,
+                    record.user_id,
+                    record.device_id,
+                    record.timezone,
+                    self._stamp(record.collected_at),
+                    record.date,
+                    record.daily_pai,
+                    record.total_pai,
+                    record.low_zone_pai,
+                    record.medium_zone_pai,
+                    record.high_zone_pai,
+                ),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def insert_stand_hour(self, record: StandHour) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO stand_hours (
+                    id, provider, source_type, source_record_id, user_id, device_id,
+                    timezone, collected_at, start_at, end_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    timezone = excluded.timezone,
+                    collected_at = excluded.collected_at,
+                    start_at = excluded.start_at,
+                    end_at = excluded.end_at,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    record.id,
+                    record.provider,
+                    record.source_type,
+                    record.source_record_id,
+                    record.user_id,
+                    record.device_id,
+                    record.timezone,
+                    self._stamp(record.collected_at),
+                    record.start_at.isoformat(),
+                    record.end_at.isoformat(),
+                ),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def insert_stand_daily(self, record: StandDaily) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO stand_daily (
+                    id, provider, source_type, source_record_id, user_id, device_id,
+                    timezone, collected_at, date, stand_hours
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    timezone = excluded.timezone,
+                    collected_at = excluded.collected_at,
+                    stand_hours = excluded.stand_hours,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    record.id,
+                    record.provider,
+                    record.source_type,
+                    record.source_record_id,
+                    record.user_id,
+                    record.device_id,
+                    record.timezone,
+                    self._stamp(record.collected_at),
+                    record.date,
+                    record.stand_hours,
+                ),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def insert_menstruation_event(self, record: MenstruationEvent) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO menstruation_events (
+                    id, provider, source_type, source_record_id, user_id, device_id,
+                    timezone, collected_at, event_date, status, date_time, update_time
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    timezone = excluded.timezone,
+                    collected_at = excluded.collected_at,
+                    event_date = excluded.event_date,
+                    status = excluded.status,
+                    date_time = excluded.date_time,
+                    update_time = excluded.update_time,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    record.id,
+                    record.provider,
+                    record.source_type,
+                    record.source_record_id,
+                    record.user_id,
+                    record.device_id,
+                    record.timezone,
+                    self._stamp(record.collected_at),
+                    record.event_date,
+                    record.status,
+                    record.date_time.isoformat(),
+                    self._stamp(record.update_time),
+                ),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def insert_training_load_daily(self, record: TrainingLoadDaily) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO training_load_daily (
+                    id, provider, source_type, source_record_id, user_id, device_id,
+                    timezone, collected_at, date, current_day_train_load, wtl_sum,
+                    wtl_sum_optimal_min, wtl_sum_optimal_max, wtl_sum_overreaching
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    timezone = excluded.timezone,
+                    collected_at = excluded.collected_at,
+                    current_day_train_load = excluded.current_day_train_load,
+                    wtl_sum = excluded.wtl_sum,
+                    wtl_sum_optimal_min = excluded.wtl_sum_optimal_min,
+                    wtl_sum_optimal_max = excluded.wtl_sum_optimal_max,
+                    wtl_sum_overreaching = excluded.wtl_sum_overreaching,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    record.id,
+                    record.provider,
+                    record.source_type,
+                    record.source_record_id,
+                    record.user_id,
+                    record.device_id,
+                    record.timezone,
+                    self._stamp(record.collected_at),
+                    record.date,
+                    record.current_day_train_load,
+                    record.wtl_sum,
+                    record.wtl_sum_optimal_min,
+                    record.wtl_sum_optimal_max,
+                    record.wtl_sum_overreaching,
+                ),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def insert_intensity_sample(self, record: IntensitySample) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO intensity_samples (
+                    id, provider, source_type, source_record_id, user_id, device_id,
+                    timezone, collected_at, timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    timezone = excluded.timezone,
+                    collected_at = excluded.collected_at,
+                    timestamp = excluded.timestamp,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    record.id,
+                    record.provider,
+                    record.source_type,
+                    record.source_record_id,
+                    record.user_id,
+                    record.device_id,
+                    record.timezone,
+                    self._stamp(record.collected_at),
+                    record.timestamp.isoformat(),
+                ),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def insert_intensity_daily(self, record: IntensityDaily) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO intensity_daily (
+                    id, provider, source_type, source_record_id, user_id, device_id,
+                    timezone, collected_at, date, duration_minutes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    timezone = excluded.timezone,
+                    collected_at = excluded.collected_at,
+                    duration_minutes = excluded.duration_minutes,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    record.id,
+                    record.provider,
+                    record.source_type,
+                    record.source_record_id,
+                    record.user_id,
+                    record.device_id,
+                    record.timezone,
+                    self._stamp(record.collected_at),
+                    record.date,
+                    record.duration_minutes,
+                ),
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
     def update_sync_state(self, data_type: str, last_record_ts: datetime | None = None) -> None:
         """Update sync state for a data type."""
         with self._get_connection() as conn:
@@ -752,6 +1158,80 @@ class Database:
             ).fetchall()
             return [dict(row) for row in rows]
 
+    def _query_by_date_column(
+        self,
+        table: str,
+        user_id: str,
+        start_date: str,
+        end_date: str,
+        column: str = "date",
+    ) -> list[dict[str, Any]]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM {table}
+                WHERE user_id = ? AND {column} >= ? AND {column} <= ?
+                ORDER BY {column}
+                """,
+                (user_id, start_date, end_date),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def query_pai_daily(self, user_id: str, start_date: str, end_date: str) -> list[dict[str, Any]]:
+        return self._query_by_date_column("pai_daily", user_id, start_date, end_date)
+
+    def query_stand_hours(
+        self, user_id: str, start_date: str, end_date: str
+    ) -> list[dict[str, Any]]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM stand_hours
+                WHERE user_id = ?
+                AND substr(start_at, 1, 10) >= ? AND substr(start_at, 1, 10) <= ?
+                ORDER BY start_at
+                """,
+                (user_id, start_date, end_date),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def query_stand_daily(
+        self, user_id: str, start_date: str, end_date: str
+    ) -> list[dict[str, Any]]:
+        return self._query_by_date_column("stand_daily", user_id, start_date, end_date)
+
+    def query_menstruation_events(
+        self, user_id: str, start_date: str, end_date: str
+    ) -> list[dict[str, Any]]:
+        return self._query_by_date_column(
+            "menstruation_events", user_id, start_date, end_date, column="event_date"
+        )
+
+    def query_training_load_daily(
+        self, user_id: str, start_date: str, end_date: str
+    ) -> list[dict[str, Any]]:
+        return self._query_by_date_column("training_load_daily", user_id, start_date, end_date)
+
+    def query_intensity_samples(
+        self, user_id: str, start_date: str, end_date: str
+    ) -> list[dict[str, Any]]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM intensity_samples
+                WHERE user_id = ?
+                AND substr(timestamp, 1, 10) >= ? AND substr(timestamp, 1, 10) <= ?
+                ORDER BY timestamp
+                """,
+                (user_id, start_date, end_date),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def query_intensity_daily(
+        self, user_id: str, start_date: str, end_date: str
+    ) -> list[dict[str, Any]]:
+        return self._query_by_date_column("intensity_daily", user_id, start_date, end_date)
+
     def get_data_coverage(self, user_id: str) -> list[dict[str, Any]]:
         """Get data coverage statistics."""
         with self._get_connection() as conn:
@@ -860,6 +1340,9 @@ class Database:
                 ("spo2", "spo2_samples", "timestamp"),
                 ("stress", "stress_samples", "timestamp"),
                 ("abnormal_heart_beat", "abnormal_heart_beat_events", "start_at"),
+                ("pai", "pai_daily", "date"),
+                ("menstruation", "menstruation_events", "event_date"),
+                ("training_load", "training_load_daily", "date"),
             ]:
                 row = conn.execute(
                     f"""
@@ -871,6 +1354,37 @@ class Database:
                     WHERE user_id = ?
                     """,
                     (user_id,),
+                ).fetchone()
+                if row and row["first_date"]:
+                    results.append({"data_type": data_type, **dict(row)})
+
+            for data_type, sql in [
+                (
+                    "valid_stand",
+                    """
+                    SELECT substr(start_at, 1, 10) AS d FROM stand_hours WHERE user_id = ?
+                    UNION
+                    SELECT date AS d FROM stand_daily WHERE user_id = ?
+                    """,
+                ),
+                (
+                    "intensity",
+                    """
+                    SELECT substr(timestamp, 1, 10) AS d FROM intensity_samples WHERE user_id = ?
+                    UNION
+                    SELECT date AS d FROM intensity_daily WHERE user_id = ?
+                    """,
+                ),
+            ]:
+                row = conn.execute(
+                    f"""
+                    SELECT
+                        MIN(d) AS first_date,
+                        MAX(d) AS last_date,
+                        COUNT(*) AS days_with_data
+                    FROM ({sql})
+                    """,
+                    (user_id, user_id),
                 ).fetchone()
                 if row and row["first_date"]:
                     results.append({"data_type": data_type, **dict(row)})

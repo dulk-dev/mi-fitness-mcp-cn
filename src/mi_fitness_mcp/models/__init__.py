@@ -120,6 +120,70 @@ class AbnormalHeartBeatEvent(BaseEntity):
     duration_seconds: int = Field(ge=0, description="Event duration in seconds")
 
 
+class PaiDaily(BaseEntity):
+    """Daily PAI (personal activity intelligence) summary. Cloud key: pai."""
+
+    date: str = Field(description="Date in YYYY-MM-DD format")
+    daily_pai: float = Field(ge=0, description="PAI earned that day")
+    total_pai: float = Field(ge=0, description="Rolling total PAI")
+    low_zone_pai: float = Field(ge=0, description="Low heart-rate zone PAI")
+    medium_zone_pai: float = Field(ge=0, description="Medium heart-rate zone PAI")
+    high_zone_pai: float = Field(ge=0, description="High heart-rate zone PAI")
+
+
+class StandHour(BaseEntity):
+    """One hour credited as standing. Cloud key: valid_stand."""
+
+    start_at: datetime = Field(description="Hour start")
+    end_at: datetime = Field(description="Hour end")
+
+
+class StandDaily(BaseEntity):
+    """Daily standing-hour count from the aggregated daily report."""
+
+    date: str = Field(description="Date in YYYY-MM-DD format")
+    stand_hours: int = Field(ge=0, description="Valid standing hours, daily report count")
+
+
+class MenstruationEvent(BaseEntity):
+    """Period start/end marker. Cloud key: menstruation. status 1=start, 2=end, 3=both."""
+
+    event_date: str = Field(description="Calendar date in YYYY-MM-DD format")
+    status: int = Field(ge=1, le=3, description="1=start, 2=end, 3=both")
+    date_time: datetime = Field(description="Marker time from the cloud record")
+    update_time: datetime | None = Field(None, description="When the marker was last edited")
+
+
+class TrainingLoadDaily(BaseEntity):
+    """Daily training load. Cloud key: training_load."""
+
+    date: str = Field(description="Date in YYYY-MM-DD format")
+    current_day_train_load: float | None = Field(None, ge=0, description="Load for that day")
+    wtl_sum: float | None = Field(None, ge=0, description="Weekly training load sum")
+    wtl_sum_optimal_min: float | None = Field(
+        None, ge=0, description="Optimal weekly load lower bound"
+    )
+    wtl_sum_optimal_max: float | None = Field(
+        None, ge=0, description="Optimal weekly load upper bound"
+    )
+    wtl_sum_overreaching: float | None = Field(
+        None, ge=0, description="Overreaching weekly load threshold"
+    )
+
+
+class IntensitySample(BaseEntity):
+    """Moderate-to-vigorous intensity sample. Cloud key: intensity, payload time."""
+
+    timestamp: datetime = Field(description="Sample time")
+
+
+class IntensityDaily(BaseEntity):
+    """Daily moderate-to-vigorous minutes from the aggregated daily report."""
+
+    date: str = Field(description="Date in YYYY-MM-DD format")
+    duration_minutes: int = Field(ge=0, description="Intensity duration in minutes")
+
+
 class UserProfile(BaseModel):
     """User profile information."""
 

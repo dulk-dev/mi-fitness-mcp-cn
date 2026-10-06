@@ -12,7 +12,7 @@ const state = {
   qrPollInterval: null,
   qrTimerInterval: null,
   qrExpiresIn: 300,
-  syncTypes: ['daily_activity', 'heart_rate', 'sleep', 'workouts', 'body_measurements', 'spo2', 'stress', 'abnormal_heart_beat'],
+  syncTypes: ['daily_activity', 'heart_rate', 'sleep', 'workouts', 'body_measurements', 'spo2', 'stress', 'abnormal_heart_beat', 'pai', 'valid_stand', 'menstruation', 'training_load', 'intensity'],
   lastResponse: null,
   lastRequestInfo: null,
 };
@@ -517,7 +517,7 @@ function toggleSyncTag(tag) {
 
 function selectAllSyncTags(all = true) {
   if (all) {
-    state.syncTypes = ['daily_activity', 'heart_rate', 'sleep', 'workouts', 'body_measurements', 'spo2', 'stress', 'abnormal_heart_beat'];
+    state.syncTypes = ['daily_activity', 'heart_rate', 'sleep', 'workouts', 'body_measurements', 'spo2', 'stress', 'abnormal_heart_beat', 'pai', 'valid_stand', 'menstruation', 'training_load', 'intensity'];
   } else {
     state.syncTypes = ['daily_activity'];
   }
@@ -536,6 +536,11 @@ function renderSyncPills() {
     { id: 'spo2', name: '血氧' },
     { id: 'stress', name: '压力' },
     { id: 'abnormal_heart_beat', name: '异常心跳' },
+    { id: 'pai', name: 'PAI' },
+    { id: 'valid_stand', name: '站立' },
+    { id: 'menstruation', name: '经期' },
+    { id: 'training_load', name: '训练负荷' },
+    { id: 'intensity', name: '中高强度' },
   ];
 
   container.innerHTML = allTypes.map(t => {

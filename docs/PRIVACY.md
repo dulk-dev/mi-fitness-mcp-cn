@@ -54,7 +54,7 @@ grep -rniE "telemetry|analytics|sentry|posthog|mixpanel" src/      # 应无结�
 
 | 数据 | 位置 | 保护 |
 |---|---|---|
-| 健康数据（8 类） | `<用户数据目录>/mi-fitness-mcp/mi_fitness.db`（SQLite） | 本机文件权限；不上传 |
+| 健康数据（13 类，含 PAI、站立、经期、训练负荷、中高强度） | `<用户数据目录>/mi-fitness-mcp/mi_fitness.db`（SQLite） | 本机文件权限；不上传 |
 | 小米 passToken（setup 凭据） | 系统 keyring（Windows: DPAPI 加密 / macOS: Keychain / Linux: Secret Service） | OS 级加密 |
 | API Key 对应的 passToken | 系统 keyring（v0.2.1 起；旧版本曾存 SQLite 明文，启动时自动迁移并清空） | OS 级加密 |
 | `mif_sk_*` Key 本身、user_id、region、发放/使用时间 | SQLite `api_keys` 表 | 无秘密性要求（可吊销） |

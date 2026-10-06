@@ -9,9 +9,16 @@ from mi_fitness_mcp.models import (
     BodyMeasurement,
     DailyActivity,
     HeartRateSample,
+    IntensityDaily,
+    IntensitySample,
+    MenstruationEvent,
+    PaiDaily,
     SleepSession,
     SpO2Sample,
+    StandDaily,
+    StandHour,
     StressSample,
+    TrainingLoadDaily,
     Workout,
 )
 
@@ -108,6 +115,69 @@ class DataAdapter(ABC):
         end_date: str | None = None,
     ) -> Iterator[AbnormalHeartBeatEvent] | AsyncIterator[AbnormalHeartBeatEvent]:
         """Iterate over abnormal heart beat events."""
+        pass
+
+    @abstractmethod
+    def iter_pai(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> Iterator[PaiDaily] | AsyncIterator[PaiDaily]:
+        """Iterate over daily PAI records."""
+        pass
+
+    @abstractmethod
+    def iter_stand_hours(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> Iterator[StandHour] | AsyncIterator[StandHour]:
+        """Iterate over hourly standing segments."""
+        pass
+
+    @abstractmethod
+    def iter_stand_daily(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> Iterator[StandDaily] | AsyncIterator[StandDaily]:
+        """Iterate over daily standing-hour counts."""
+        pass
+
+    @abstractmethod
+    def iter_menstruation(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> Iterator[MenstruationEvent] | AsyncIterator[MenstruationEvent]:
+        """Iterate over menstruation start/end markers."""
+        pass
+
+    @abstractmethod
+    def iter_training_load(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> Iterator[TrainingLoadDaily] | AsyncIterator[TrainingLoadDaily]:
+        """Iterate over daily training-load records."""
+        pass
+
+    @abstractmethod
+    def iter_intensity(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> Iterator[IntensitySample] | AsyncIterator[IntensitySample]:
+        """Iterate over intensity samples."""
+        pass
+
+    @abstractmethod
+    def iter_intensity_daily(
+        self,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> Iterator[IntensityDaily] | AsyncIterator[IntensityDaily]:
+        """Iterate over daily intensity durations."""
         pass
 
     @abstractmethod

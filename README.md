@@ -15,7 +15,7 @@
 
 - 🇨🇳 **中国区云端适配**（`--region cn`），同时支持 ru/de/sg/us 等国际区
 - 📦 **三种接入方式**：MCP Server（AI 客户端）、REST API（任意程序）、Web 仪表盘（浏览器）
-- 💤 **全量健康指标**：每日活动、逐分钟心率、睡眠分期（深睡/浅睡/REM/小睡）、运动记录、身体成分、血氧（SpO₂）、压力、异常心跳
+- 💤 **全量健康指标**：每日活动、逐分钟心率、睡眠分期（深睡/浅睡/REM/小睡，含睡眠评分）、运动记录、身体成分、血氧（SpO₂）、压力、异常心跳、PAI、站立小时、经期标记、训练负荷、中高强度
 - 🔄 **增量同步引擎**：7 天分块拉取 + 断点续传游标 + UPSERT 幂等入库，重复同步不产生脏数据
 - 🔑 **API Key 体系**：用小米凭据换取 `mif_sk_*` Key（类大模型平台风格），支持多账号隔离、用量统计、按前缀吊销
 - 📱 **扫码登录**：逆向小米官方扫码流程，手机 App 扫码即可授权，告别浏览器 F12 抓 Cookie
@@ -32,7 +32,7 @@ flowchart LR
     B -->|同步| C[小米健康云]
     C -->|RC4 加密 + 签名<br/>逆向协议| D[SyncService<br/>分块/增量]
     D --> E[(本地 SQLite)]
-    E --> F[MCP Server<br/>stdio · 14 个工具]
+    E --> F[MCP Server<br/>stdio · 19 个工具]
     E --> G[REST API<br/>FastAPI · X-API-Key]
     E --> H[Web 仪表盘<br/>Flask · 浏览器]
     G <--> H
@@ -44,14 +44,34 @@ flowchart LR
 |---|---|---|---|
 | 每日活动 | 步数、距离、活动卡路里 | `daily_activity` | `/api/summary` |
 | 心率 | 逐分钟采样 + 静息心率 | `heart_rate` | `/api/heart-rate` |
-| 睡眠 | 时长、入睡/清醒、分段（深睡/浅睡/REM） | `sleep` | `/api/sleep` |
+| 睡眠 | 时长、入睡/清醒、分段（深睡/浅睡/REM）、睡眠评分 | `sleep` | `/api/sleep` |
 | 运动 | 类型、时长、距离、卡路里、心率、配速 | `workouts` | `/api/workouts` |
 | 身体成分 | 体重、BMI、体脂、肌肉量等（需体脂秤） | `body_measurements` | `/api/body-measurements` |
 | 血氧 | SpO₂ 采样 | `spo2` | `/api/spo2` |
 | 压力 | 压力分数 + 等级 | `stress` | `/api/stress` |
 | 异常心跳 | 事件起止与时长 | `abnormal_heart_beat` | `/api/abnormal-heart-beat` |
+| PAI | 当日 PAI、累计 PAI、低/中/高心率区间 PAI | `pai` | `/api/pai` |
+| 站立 | 每小时站立片段，以及每日站立小时数 | `valid_stand` | `/api/valid-stand` |
+| 经期 | 开始/结束标记（status 1=开始，2=结束，3=同日开始并结束） | `menstruation` | `/api/menstruation` |
+| 训练负荷 | 当日负荷、周负荷及建议区间 | `training_load` | `/api/training-load` |
+| 中高强度 | 采样时刻，以及每日中高强度分钟数 | `intensity` | `/api/intensity` |
 
-云端键：睡眠同时读取历史 `sleep` 与新手表夜间睡眠 `watch_night_sleep`（记录缺少 `zone_offset` 或为 0 时按 UTC+8，时区默认 `Asia/Shanghai`）。血氧同时读取 `spo2` 与采样键 `single_spo2`。
+云端键：睡眠同时读取历史 `sleep` 与新手表夜间睡眠 `watch_night_sleep`（记录缺少 `zone_offset` 或为 0 时按 UTC+8，时区默认 `Asia/Shanghai`）。原始睡眠记录没有评分时，用聚合日报 `daily_report` / `sleep` 的 `sleep_score` 填到已有的 `sleep_score` 字段（只补空着的主睡眠，不覆盖原始评分，也不写给小睡）。血氧同时读取 `spo2` 与采样键 `single_spo2`。
+
+新增键与类型：
+
+| 云端 key | 拉取方式 | 入库类型 | 主要字段 |
+|---|---|---|---|
+| `pai` | `get_fitness_data_by_time` | `pai` | `daily_pai`、`total_pai`、`low_zone_pai`、`medium_zone_pai`、`high_zone_pai` |
+| `valid_stand` | 同上，按小时 | `valid_stand` | `start_time`、`end_time` |
+| `valid_stand` | 聚合 `daily_report` | `valid_stand` | `count` = 当日站立小时 |
+| `menstruation` | `get_fitness_data_by_time` | `menstruation` | `status`（1 开始 / 2 结束 / 3 同日）、`date_time` |
+| `training_load` | `get_fitness_data_by_time` | `training_load` | `current_day_train_load`、`wtl_sum`、`wtl_sum_optimal_min`、`wtl_sum_optimal_max`、`wtl_sum_overreaching` |
+| `intensity` | `get_fitness_data_by_time` | `intensity` | `time`（采样时刻） |
+| `intensity` | 聚合 `daily_report` | `intensity` | `duration`（分钟） |
+| `sleep` | 聚合 `daily_report` | `sleep` | `sleep_score`（补到已有睡眠记录） |
+
+聚合日报请求 `POST /app/v1/data/get_aggregated_fitness_data_by_time`，体为 `{key, tag:"daily_report", start_time, end_time, limit}`，用 `next_key` 翻页。
 
 ## 快速开始
 
@@ -105,7 +125,7 @@ mi-fitness-mcp sync                                                            #
 }
 ```
 
-MCP 工具（14 个）：`get_connection_status` · `sync_data` · `get_sync_status` · `get_profile` · `get_daily_summary` · `query_metric_series` · `query_heart_rate` · `query_body_measurements` · `query_sleep` · `query_workouts` · `query_spo2` · `query_stress` · `query_abnormal_heart_beat` · `get_data_coverage`
+MCP 工具（19 个）：`get_connection_status` · `sync_data` · `get_sync_status` · `get_profile` · `get_daily_summary` · `query_metric_series` · `query_heart_rate` · `query_body_measurements` · `query_sleep` · `query_workouts` · `query_spo2` · `query_stress` · `query_abnormal_heart_beat` · `query_pai` · `query_valid_stand` · `query_menstruation` · `query_training_load` · `query_intensity` · `get_data_coverage`
 
 ## REST API 与鉴权
 
@@ -168,13 +188,13 @@ MCP SDK 2.x 移除了该 API。本项目已固定 `mcp>=1.0.0,<2`，若你从旧
 ```text
 src/mi_fitness_mcp/
 ├── main.py               # CLI 统一入口: serve / setup / doctor / sync / api / web
-├── server.py             # MCP Server（14 个工具 + 异步同步引擎）
+├── server.py             # MCP Server（19 个工具 + 异步同步引擎）
 ├── api.py                # REST API 服务（FastAPI: 数据端点 + Key 体系 + 扫码登录）
 ├── web.py                # 可视化仪表盘反向代理服务（Flask）
 ├── web_assets/           # 前端界面（HTML / CSS / JS）
 ├── adapters/             # 小米云协议：登录、RC4 加解密、签名、分页、解析
 ├── services/             # 同步引擎（分块/增量）与查询聚合
-├── storage/              # SQLite 数据库引擎（8 张数据表 + sync_state）
+├── storage/              # SQLite 数据库引擎（15 张数据表 + sync_state）
 ├── models/               # Pydantic 数据模型
 ├── config.py             # 系统配置管理（platformdirs + JSON）
 └── auth/                 # keyring 安全凭据存储
@@ -195,7 +215,7 @@ tests/                    # 单元测试与端到端测试套件
 ```bash
 pip install -e '.[all,dev]'
 ruff check src tests    # 代码规范检查（CI 同款）
-pytest -v               # 完整测试套件（22 个）
+pytest -v               # 完整测试套件（36 个）
 python -m build         # 构建发行包
 ```
 

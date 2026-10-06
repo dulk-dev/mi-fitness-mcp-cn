@@ -136,7 +136,9 @@ class SyncService:
                     }
                 )
                 return {
-                    "status": "partial" if any(c.get("status") == "ok" for c in chunks) else "error",
+                    "status": "partial"
+                    if any(c.get("status") == "ok" for c in chunks)
+                    else "error",
                     "data_type": data_type,
                     **totals,
                     "start_date": start_date,
@@ -254,6 +256,72 @@ class SyncService:
                     updated += 1
                 if last_ts is None or event.start_at > last_ts:
                     last_ts = event.start_at
+
+        elif data_type == "pai":
+            records = self.adapter.iter_pai(start_date, end_date)
+            async for record in self._iterate_records(records):
+                if self.db.insert_pai_daily(record):
+                    added += 1
+                else:
+                    updated += 1
+                if last_ts is None or (record.collected_at and record.collected_at > last_ts):
+                    last_ts = record.collected_at
+
+        elif data_type == "valid_stand":
+            hours = self.adapter.iter_stand_hours(start_date, end_date)
+            async for record in self._iterate_records(hours):
+                if self.db.insert_stand_hour(record):
+                    added += 1
+                else:
+                    updated += 1
+                if last_ts is None or record.start_at > last_ts:
+                    last_ts = record.start_at
+            daily = self.adapter.iter_stand_daily(start_date, end_date)
+            async for record in self._iterate_records(daily):
+                if self.db.insert_stand_daily(record):
+                    added += 1
+                else:
+                    updated += 1
+                if last_ts is None or (record.collected_at and record.collected_at > last_ts):
+                    last_ts = record.collected_at
+
+        elif data_type == "menstruation":
+            records = self.adapter.iter_menstruation(start_date, end_date)
+            async for record in self._iterate_records(records):
+                if self.db.insert_menstruation_event(record):
+                    added += 1
+                else:
+                    updated += 1
+                if last_ts is None or record.date_time > last_ts:
+                    last_ts = record.date_time
+
+        elif data_type == "training_load":
+            records = self.adapter.iter_training_load(start_date, end_date)
+            async for record in self._iterate_records(records):
+                if self.db.insert_training_load_daily(record):
+                    added += 1
+                else:
+                    updated += 1
+                if last_ts is None or (record.collected_at and record.collected_at > last_ts):
+                    last_ts = record.collected_at
+
+        elif data_type == "intensity":
+            samples = self.adapter.iter_intensity(start_date, end_date)
+            async for record in self._iterate_records(samples):
+                if self.db.insert_intensity_sample(record):
+                    added += 1
+                else:
+                    updated += 1
+                if last_ts is None or record.timestamp > last_ts:
+                    last_ts = record.timestamp
+            daily = self.adapter.iter_intensity_daily(start_date, end_date)
+            async for record in self._iterate_records(daily):
+                if self.db.insert_intensity_daily(record):
+                    added += 1
+                else:
+                    updated += 1
+                if last_ts is None or (record.collected_at and record.collected_at > last_ts):
+                    last_ts = record.collected_at
 
         else:
             raise ValueError(f"Unknown data type: {data_type}")

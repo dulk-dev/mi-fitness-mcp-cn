@@ -11,7 +11,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from mi_fitness_mcp.adapters.mi_fitness_cloud import MiFitnessCloudAdapter
+from mi_fitness_mcp.adapters.mi_fitness_cloud import SUPPORTED_DATA_TYPES, MiFitnessCloudAdapter
 from mi_fitness_mcp.auth import load_mi_fitness_token
 from mi_fitness_mcp.config import load_config
 from mi_fitness_mcp.models import ConnectionStatus, QueryResponse
@@ -225,6 +225,66 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="query_pai",
+            description="Query daily PAI (personal activity intelligence)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "start_date": {"type": "string"},
+                    "end_date": {"type": "string"},
+                },
+                "required": ["start_date", "end_date"],
+            },
+        ),
+        Tool(
+            name="query_valid_stand",
+            description="Query standing hours: hourly segments and daily counts",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "start_date": {"type": "string"},
+                    "end_date": {"type": "string"},
+                },
+                "required": ["start_date", "end_date"],
+            },
+        ),
+        Tool(
+            name="query_menstruation",
+            description="Query menstruation markers (status 1=start, 2=end, 3=both)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "start_date": {"type": "string"},
+                    "end_date": {"type": "string"},
+                },
+                "required": ["start_date", "end_date"],
+            },
+        ),
+        Tool(
+            name="query_training_load",
+            description="Query daily training load",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "start_date": {"type": "string"},
+                    "end_date": {"type": "string"},
+                },
+                "required": ["start_date", "end_date"],
+            },
+        ),
+        Tool(
+            name="query_intensity",
+            description="Query moderate-to-vigorous intensity samples and daily minutes",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "start_date": {"type": "string"},
+                    "end_date": {"type": "string"},
+                },
+                "required": ["start_date", "end_date"],
+            },
+        ),
+        Tool(
             name="get_data_coverage",
             description="Get data coverage",
             inputSchema={
@@ -264,6 +324,16 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             result = await _handle_query_stress(arguments)
         elif name == "query_abnormal_heart_beat":
             result = await _handle_query_abnormal_heart_beat(arguments)
+        elif name == "query_pai":
+            result = await _handle_query_pai(arguments)
+        elif name == "query_valid_stand":
+            result = await _handle_query_valid_stand(arguments)
+        elif name == "query_menstruation":
+            result = await _handle_query_menstruation(arguments)
+        elif name == "query_training_load":
+            result = await _handle_query_training_load(arguments)
+        elif name == "query_intensity":
+            result = await _handle_query_intensity(arguments)
         elif name == "get_data_coverage":
             result = await _handle_get_data_coverage(arguments)
         else:
@@ -296,16 +366,7 @@ async def _handle_get_connection_status() -> dict:
     last_sync = None
     available_types = []
     if db:
-        for data_type in [
-            "daily_activity",
-            "heart_rate",
-            "body_measurements",
-            "sleep",
-            "workouts",
-            "spo2",
-            "stress",
-            "abnormal_heart_beat",
-        ]:
+        for data_type in SUPPORTED_DATA_TYPES:
             state = db.get_sync_state(data_type)
             if state and state.get("last_sync_at"):
                 available_types.append(data_type)
@@ -334,9 +395,7 @@ async def _handle_get_connection_status() -> dict:
 async def _background_sync(sync_id: str, arguments: dict) -> None:
     global sync_active
     try:
-        sync_tasks[sync_id].update(
-            status="running", started_at=datetime.now(UTC).isoformat()
-        )
+        sync_tasks[sync_id].update(status="running", started_at=datetime.now(UTC).isoformat())
         sync_tasks[sync_id] = await _run_sync_data(arguments, sync_id)
     except asyncio.CancelledError:
         sync_tasks[sync_id] = {"sync_id": sync_id, "status": "cancelled"}
@@ -610,6 +669,57 @@ async def _handle_query_abnormal_heart_beat(arguments: dict) -> dict:
     return QueryResponse(
         status="ok", source="cache", data={"events": events, "count": len(events)}
     ).model_dump()
+
+
+async def _handle_query_pai(arguments: dict) -> dict:
+    if not query_service:
+        return {"status": "error", "error": "Query service not initialized"}
+    rows = query_service.get_pai_daily(
+        start_date=arguments["start_date"], end_date=arguments["end_date"]
+    )
+    return QueryResponse(
+        status="ok", source="cache", data={"records": rows, "count": len(rows)}
+    ).model_dump()
+
+
+async def _handle_query_valid_stand(arguments: dict) -> dict:
+    if not query_service:
+        return {"status": "error", "error": "Query service not initialized"}
+    payload = query_service.get_valid_stand(
+        start_date=arguments["start_date"], end_date=arguments["end_date"]
+    )
+    return QueryResponse(status="ok", source="cache", data=payload).model_dump()
+
+
+async def _handle_query_menstruation(arguments: dict) -> dict:
+    if not query_service:
+        return {"status": "error", "error": "Query service not initialized"}
+    rows = query_service.get_menstruation_events(
+        start_date=arguments["start_date"], end_date=arguments["end_date"]
+    )
+    return QueryResponse(
+        status="ok", source="cache", data={"events": rows, "count": len(rows)}
+    ).model_dump()
+
+
+async def _handle_query_training_load(arguments: dict) -> dict:
+    if not query_service:
+        return {"status": "error", "error": "Query service not initialized"}
+    rows = query_service.get_training_load(
+        start_date=arguments["start_date"], end_date=arguments["end_date"]
+    )
+    return QueryResponse(
+        status="ok", source="cache", data={"records": rows, "count": len(rows)}
+    ).model_dump()
+
+
+async def _handle_query_intensity(arguments: dict) -> dict:
+    if not query_service:
+        return {"status": "error", "error": "Query service not initialized"}
+    payload = query_service.get_intensity(
+        start_date=arguments["start_date"], end_date=arguments["end_date"]
+    )
+    return QueryResponse(status="ok", source="cache", data=payload).model_dump()
 
 
 async def _handle_get_data_coverage(arguments: dict) -> dict:

@@ -4,7 +4,7 @@ import argparse
 import asyncio
 import sys
 
-from mi_fitness_mcp.adapters.mi_fitness_cloud import MiFitnessCloudAdapter
+from mi_fitness_mcp.adapters.mi_fitness_cloud import SUPPORTED_DATA_TYPES, MiFitnessCloudAdapter
 from mi_fitness_mcp.auth import load_mi_fitness_token, save_mi_fitness_token
 from mi_fitness_mcp.config import Config, get_config_path, load_config, save_config
 from mi_fitness_mcp.server import main as server_main
@@ -191,16 +191,7 @@ def main():
     sync_parser = subparsers.add_parser("sync", help="从数据源同步数据")
     sync_parser.add_argument(
         "--type",
-        choices=[
-            "daily_activity",
-            "body_measurements",
-            "heart_rate",
-            "sleep",
-            "workouts",
-            "spo2",
-            "stress",
-            "abnormal_heart_beat",
-        ],
+        choices=SUPPORTED_DATA_TYPES,
         help="要同步的数据类型",
     )
     sync_parser.add_argument("--start-date", help="开始日期（YYYY-MM-DD）")

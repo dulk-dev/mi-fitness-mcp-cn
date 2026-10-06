@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- 新增 PAI（`pai`）、站立小时（`valid_stand` 小时片段 + 日报 `count`）、经期标记（`menstruation`，status 1/2/3）、训练负荷（`training_load`）、中高强度（`intensity` 采样 + 日报分钟数）
+- 原始睡眠记录没有评分时，用聚合日报 `daily_report`/`sleep` 的 `sleep_score` 填入已有 `sleep_sessions.sleep_score`
+- REST 与 MCP 增加对应查询；同步类型与导出一并覆盖
+
 ## 0.2.2（零第三方请求）
 
 - 移除 Web 仪表盘与测试页的 Google Fonts 外链：打开页面不再向 Google 发送任何请求（此前浏览器会上传 IP/UA），改用系统字体栈，国内加载也更快、离线可渲染

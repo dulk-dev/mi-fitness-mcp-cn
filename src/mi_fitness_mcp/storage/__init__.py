@@ -502,10 +502,17 @@ class Database:
                     time_asleep_minutes, time_awake_minutes, sleep_score, is_nap, stages
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id, sleep_id) DO UPDATE SET
+                    source_record_id = excluded.source_record_id,
+                    device_id = excluded.device_id,
+                    timezone = excluded.timezone,
+                    collected_at = excluded.collected_at,
+                    start_at = excluded.start_at,
+                    end_at = excluded.end_at,
                     duration_minutes = excluded.duration_minutes,
                     time_asleep_minutes = excluded.time_asleep_minutes,
                     time_awake_minutes = excluded.time_awake_minutes,
                     sleep_score = excluded.sleep_score,
+                    is_nap = excluded.is_nap,
                     stages = excluded.stages,
                     updated_at = CURRENT_TIMESTAMP
                 """,
